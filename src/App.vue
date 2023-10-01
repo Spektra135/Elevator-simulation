@@ -29,10 +29,6 @@ export default {
     };
   },
   created() {
-    /*const userAccessKey = localStorage.getItem('userAccessKey');
-    if (userAccessKey) {
-      this.updateUserAccessKey(userAccessKey);
-    }*/
     /*this.loadSavedState();*/
   },
   computed: {
@@ -42,8 +38,7 @@ export default {
     },*/
   },
   methods: {
-    ...mapActions(['callElevator', 'moveElevator', /*'loadSavedState', 'saveState'*/]),
-    /*...mapMutations(['updateUserAccessKey']),*/
+    ...mapActions(['callElevator', 'moveElevator', 'loadSavedState', 'saveState']),
   }
 }
 </script>

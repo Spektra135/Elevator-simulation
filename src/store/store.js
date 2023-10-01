@@ -6,6 +6,7 @@ Vue.use(Vuex);
 export  default new Vuex.Store({
     state: {
         currentFloor: 1, // Текущий этаж
+        passedFloors: [],
         isMoving: false,
         isJustArrived: false,
         callQueue: [],
@@ -14,6 +15,14 @@ export  default new Vuex.Store({
     mutations: {
         setCurrentFloor(state, floor) {
             state.currentFloor = floor;
+        },
+
+        addPassedFloors(state, floor) {
+            state.passedFloors.push(floor);
+        },
+
+        resetPassedFloors(state) {
+            state.passedFloors = [];
         },
         setIsMoving(state, isMoving) {
             state.isMoving = isMoving;
@@ -24,8 +33,16 @@ export  default new Vuex.Store({
         setCallQueue(state, callQueue) {
             state.callQueue = callQueue;
         },
+
+        addToCallQueue(state, floor) {
+            state.callQueue.push(floor);
+        },
         setTargetFloor(state, targetFloor) {
             state.targetFloor = targetFloor;
+        },
+
+        resetTargetFloor(state) {
+            state.targetFloor = null;
         },
     },
     getters: {
@@ -59,31 +76,7 @@ export  default new Vuex.Store({
         },
 
         callElevator({ commit, dispatch, state }, floor) {
-            if (state.currentFloor === floor) {
-                console.log('Лифт уже на выбранном этаже');
-                return;
-            }
-
-            if (state.callQueue.includes(state.targetFloor)) {
-                console.log('Лифт уже на пути к выбранному этажу');
-                return;
-            }
-
-            if ( !state.callQueue.includes(floor)) {
-                // Добавляем этаж в очередь вызовов, если его там еще нет
-                commit('setCallQueue', [...state.callQueue, floor]);
-               /* dispatch('saveState');*/
-            }
-            // Если лифт не двигается в данный момент, вызываем его
-            if (!state.isMoving) {
-                const nextFloor = state.callQueue.shift();
-                commit('setTargetFloor', nextFloor);
-                dispatch('moveElevator', nextFloor);
-            }
-        },
-
-        /*callElevator({ commit, dispatch, state }, floor) {
-            if (state.currentFloor === floor) {
+            if (state.currentFloor === floor && !state.passedFloors.includes(floor)) {
                 console.log('Лифт уже на выбранном этаже');
                 return;
             }
@@ -94,42 +87,45 @@ export  default new Vuex.Store({
             }
 
             if (!state.isMoving) { // Когда лифт не движется
-                if (this.callQueue.length === 0) { // если очередь вызовов пуста
+                if (state.callQueue.length === 0) { // если очередь вызовов пуста
                     // Лифт поехал к выбранному этажу
                     console.log('Лифт вызван и отправился на этаж', floor);
                     dispatch('moveElevator', floor);
                     commit('setTargetFloor', floor);
+
                 } else {
                     //если есть вызовы в очереди
-                    const nextFloor = state.callQueue.shift();
-                    commit('setTargetFloor', nextFloor);
-                    dispatch('moveElevator', nextFloor);
+                    commit('setCallQueue', [...state.callQueue, floor]);
                 }
                 // Добавляем вызов в очередь, если лифт занят (движется или "трёхсекундный отдых")
             } else if (!state.callQueue.includes(floor) && floor !== state.targetFloor) {  // Проверяем, что выбранного этажа отсутствует в очереди и не является этажом, к которому в данный момент движется лифт
-                console.log(`Лифт на этаж ${floor} помещён в очередь вызовов`);
+                console.log(`Вызов лифт на этаж ${floor} помещён в очередь вызовов`);
                 commit('setCallQueue', [...state.callQueue, floor]);
-                /!*dispatch('saveState');*!/
+                dispatch('saveState');
             }
-        },*/
-        moveElevator({ commit, state }, floor) {
+        },
+        moveElevator({ commit, state, dispatch }, floor) {
             commit('setIsMoving', true);
-            if (state.currentFloor === floor) {
-                return;
-            }
+            commit('setTargetFloor', floor);
 
             // Метод для перемещения лифта к выбранному (целевому) этажу
-            const direction = floor > state.currentFloor ? 1 : -1;
+            const direction = state.targetFloor > state.currentFloor ? 1 : -1;
 
             const interval = setInterval(() => {
-                if (state.currentFloor > 0) {
+                if (state.targetFloor > 0) {
                     // Обновляем текущий этаж
                     commit('setCurrentFloor', state.currentFloor + direction);
+                    if (state.targetFloor !==  state.currentFloor) {
+                        commit('addPassedFloors', state.currentFloor);
+                    }
                 }
                 // Сохраняем данные в локальное хранилище
-                /*dispatch('saveState');*/
+                dispatch('saveState');
                 // лифт прибыл на целевой этаж
-                if (state.currentFloor === floor) {
+                if (state.currentFloor === state.targetFloor && !state.passedFloors.includes(floor)) {
+                    console.log(`Лифт прибыл на целевой этаж ${state.targetFloor}`);
+                    commit('resetPassedFloors');
+                    commit('resetTargetFloor');
                     commit('setIsMoving', false);
                     clearInterval(interval); // Завершаем движение
                     setTimeout(() => {
@@ -141,13 +137,21 @@ export  default new Vuex.Store({
                         // если есть поступившие вызовы - лифт отправится после отдыха согласно очереди
                         if (state.callQueue.length > 0) {
                             const nextFloor = state.callQueue.shift();
-                            commit('setTargetFloor', nextFloor);
-                            commit('moveElevator', nextFloor);
+                            console.log(`Лифт отправляется на следующий этаж: ${nextFloor}`);
+                            dispatch('moveElevator', nextFloor);
                         }
                     }, 3000); // 3 секунды отдыха
-                    /*dispatch('saveState');*/
+                    dispatch('saveState');
                 }
-            }, 2000); // 1 этаж в секунду
+            }, 1000); // 1 этаж в секунду
         },
+
+        moveElevatorToNextFloor({  commit, state, dispatch }, floor) {
+            const nextFloor = state.callQueue.shift();
+            console.log(`Лифт отправляется на следующий этаж: ${nextFloor}`);
+            /*commit('setTargetFloor', nextFloor);*/
+            dispatch('moveElevator', nextFloor);
+            console.log(`nextFloor ${nextFloor}`);
+        }
     }
 });
