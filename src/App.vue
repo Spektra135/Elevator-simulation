@@ -18,7 +18,7 @@
 
 <script>
 import FloorItem from "@/components/FloorItem";
-import { mapState, mapActions/*, mapMutations*/ } from "vuex";
+import { mapState, mapActions } from "vuex";
 
 export default {
   name: "App",
@@ -29,7 +29,7 @@ export default {
     };
   },
   created() {
-    /*this.loadSavedState();*/
+    this.loadSavedState();
   },
   computed: {
     ...mapState(["currentFloor", "isMoving", "isJustArrived", "callQueue", "targetFloor"]),
@@ -38,7 +38,7 @@ export default {
     },*/
   },
   methods: {
-    ...mapActions(['callElevator', 'moveElevator', 'loadSavedState', 'saveState']),
+    ...mapActions(['callElevator', 'moveElevator', 'moveElevatorToNextFloor', 'loadSavedState', 'saveState']),
   }
 }
 </script>
