@@ -5,27 +5,30 @@
         @click="callElevator(floor)"
         class="button-call"
         :class="{
-          'elevator-in-progress': isMoving && (floor === targetFloor || callQueue.includes(floor)),
-          'elevator-in-queue': !isMoving && callQueue.includes(floor),
+           'elevator-in-progress': targetFloors.includes(floor) || callQueue.includes(floor),
         }"
     >о</button>
   </div>
-
 </template>
 
 <script>
+  import { mapActions, mapState, mapGetters } from "vuex";
 
-import { mapActions, mapState } from "vuex";
-
-export default {
-  props: ["floor"],
-  computed: {
-    ...mapState(["currentFloor", "isMoving", "isJustArrived", "callQueue", "targetFloor"]),
-  },
-  methods: {
-    ...mapActions(["callElevator"]),
-  },
-};
+  export default {
+    name: "ControlPanelItem",
+    props: ["floor", "elevator"],
+    computed: {
+      ...mapState({
+        callQueue: state => state.callQueue, // Получаем данные из state
+      }),
+      ...mapGetters({
+        targetFloors: 'getTargetFloors',
+      }),
+    },
+    methods: {
+      ...mapActions(['callElevator']),
+    },
+  };
 </script>
 
 <style scoped>

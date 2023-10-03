@@ -5,11 +5,7 @@
           v-for="floor in floors"
           :key="floor"
           :floor="floor"
-          :currentFloor="currentFloor"
-          :isMoving="isMoving"
-          :isJustArrived="isJustArrived"
-          :callQueue="callQueue"
-          :targetFloor="targetFloor"
+          :numberOfElevators="numberOfElevators"
           @call-elevator="callElevator(floor)"
       />
     </div>
@@ -18,27 +14,41 @@
 
 <script>
 import FloorItem from "@/components/FloorItem";
-import { mapState, mapActions } from "vuex";
+import {mapState, mapActions, mapMutations, mapGetters} from "vuex";
+import { config } from "../config/config";
 
-export default {
-  name: "App",
-  components: {FloorItem},
-  data() {
-    return {
-      floors: [1, 2, 3, 4, 5], // Список этажей
-    };
-  },
-  created() {
-    this.loadSavedState();
-  },
+  export default {
+    name: "App",
+    components: {FloorItem},
+    data() {
+      return {
+        numberOfFloors: config.numberOfFloors,
+        numberOfElevators: config.numberOfElevators,
+      };
+    },
+    created() {
+      const savedState = JSON.parse(localStorage.getItem('appState') || '{}');
+
+      if (Object.keys(savedState).length === 0) {
+        // Локальное хранилище пустое, вызываем createElevators
+        this.$store.dispatch('createElevators');
+      } else {
+        this.$store.dispatch('loadSavedState');
+      }
+    },
   computed: {
-    ...mapState(["currentFloor", "isMoving", "isJustArrived", "callQueue", "targetFloor"]),
-    /*numberOfFloors() {
-      return 10; // Замените на фактическое количество этажей
-    },*/
+    ...mapMutations(['assignElevatorToFloor']),
+    ...mapState(['callQueue']),
+    floors() {
+      const floorList = [];
+      for (let i = 1; i <= this.numberOfFloors; i++) {
+        floorList.push(i);
+      }
+      return floorList;
+    },
   },
   methods: {
-    ...mapActions(['callElevator', 'moveElevator', 'moveElevatorToNextFloor', 'loadSavedState', 'saveState']),
+    ...mapActions(['callElevator', 'loadSavedState']),
   }
 }
 </script>

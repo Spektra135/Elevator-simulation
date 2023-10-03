@@ -1,26 +1,23 @@
 import Vue from "vue";
 import Vuex from "vuex";
+import { config } from "../../config/config";
 
 Vue.use(Vuex);
 
 export  default new Vuex.Store({
     state: {
-        currentFloor: 1, // Текущий этаж
-        passedFloors: [], // Транзитные этажи, которые лифт проезжает по пути, не останавливаясь
-        isMoving: false,
-        isJustArrived: false,
-        callQueue: [],
-        targetFloor: null, // Этаж, к которому в данный момент направляется лифт
+        elevators: [], // Массив лифтов
+        callQueue: [], // Общая очередь вызовов (массив номеров этажей)
     },
     mutations: {
+        addElevator(state, elevator) {
+            state.elevators.push(elevator);
+        },
+        setPassedFloors(state, passedFloors) {
+            state.passedFloors = passedFloors;
+        },
         setCurrentFloor(state, floor) {
             state.currentFloor = floor;
-        },
-        addPassedFloors(state, floor) {
-            state.passedFloors.push(floor);
-        },
-        resetPassedFloors(state) {
-            state.passedFloors = [];
         },
         setIsMoving(state, isMoving) {
             state.isMoving = isMoving;
@@ -31,140 +28,172 @@ export  default new Vuex.Store({
         setCallQueue(state, callQueue) {
             state.callQueue = callQueue;
         },
-
-        addToCallQueue(state, floor) {
-            state.callQueue.push(floor);
-        },
         setTargetFloor(state, targetFloor) {
             state.targetFloor = targetFloor;
         },
-
-        resetTargetFloor(state) {
-            state.targetFloor = null;
-        },
-    },
-    getters: {
-
-    },
-    actions: {
-        loadSavedState({ commit, dispatch }) {
-            // Получаем сохраненное состояние из локального хранилища
-            const savedState = localStorage.getItem('elevatorState');
-            if (savedState) {
-                const state = JSON.parse(savedState);
-
-                // Восстанавливаем состояние
-                commit('setCurrentFloor', state.currentFloor);
-                commit('setIsMoving', state.isMoving);
-                commit('setIsJustArrived', state.isJustArrived);
-                commit('setTargetFloor', state.targetFloor);
-                commit('setCallQueue', state.callQueue);
-
-                if (state.callQueue.length > 0 && !state.isMoving) {  // Проверьте, есть ли вызовы в очереди, и если есть, начните движение лифта
-                    dispatch('moveElevatorToNextFloor');
-                } else if (state.isMoving) {            // Проверяем, двигался ли лифт на момент перезагрузки страницы, и если да, запускаем движение лифта
-                    dispatch('moveElevator', state.targetFloor);
-                }
-                if (state.isJustArrived) {
-                    setTimeout(() => {
-                        commit('setIsJustArrived', false); // убираем индикатор "трёхсекундного" отдыха лифта по прибытии
-                        dispatch('saveState');
-                    }, 3000); // 3 секунды отдыха
-                }
-            }
-        },
-        saveState({ state }) {
-            // Сохраняем текущее состояние в локальное хранилище
-            const savedState = {
-                currentFloor: state.currentFloor,
-                isMoving: state.isMoving,
-                isJustArrived: state.isJustArrived,
-                callQueue: state.callQueue,
-                targetFloor: state.targetFloor,
-            };
-            localStorage.setItem('elevatorState', JSON.stringify(savedState));
-        },
-
-        callElevator({ commit, dispatch, state }, floor) {
-            if (state.currentFloor === floor && !state.passedFloors.includes(floor)) {  // Проверяем, не находится ли лифт в состоянии покоя на целевом этаже
-                console.log('Лифт уже на выбранном этаже');
-                return;
-            }
-
-            if (state.callQueue.includes(state.targetFloor)) {  // Проверяем, не направляется ли уже лифт к целевому этажу
-                console.log('Лифт уже на пути к выбранному этажу');
-                return;
-            }
-
-            if (!state.isMoving) { // Когда лифт не движется
-                if (state.callQueue.length === 0) { // если очередь вызовов пуста
-                    // Отправляем лифт к целевому этажу
-                    console.log('Лифт вызван и отправился на этаж', floor);
-                    dispatch('moveElevator', floor);
-                    commit('setTargetFloor', floor);
-
-
-                } else {
-                    //если есть вызовы в очереди, добавляем ещё один (для ситуации "трёхсекундного отдыха")
-                    commit('setCallQueue', [...state.callQueue, floor]);
-                }
-                // Добавляем вызов в очередь, если лифт движется
-            } else if (!state.callQueue.includes(floor) && floor !== state.targetFloor) {  // Проверяем, что выбранного этажа отсутствует в очереди и не является этажом, к которому в данный момент движется лифт
-                console.log(`Вызов лифт на этаж ${floor} помещён в очередь вызовов`);
-                commit('setCallQueue', [...state.callQueue, floor]);
-                dispatch('saveState');
-            }
-        },
-        moveElevator({ commit, state, dispatch }, floor) {
-            commit('setIsMoving', true);
-            commit('setTargetFloor', floor);
+        assignElevatorToFloor(state, { elevator, floor }) {
+            // Назначаем лифту целевой этаж и включаем индикатор движения
+            elevator.targetFloor = floor;
+            elevator.isMoving = true;
+            this.commit('saveState');
 
             // Метод для перемещения лифта к выбранному (целевому) этажу
-            const direction = state.targetFloor > state.currentFloor ? 1 : -1;
+            const direction = floor > elevator.currentFloor ? 1 : -1;
 
-            const interval = setInterval(() => {
-                if (state.targetFloor > 0) { // пока  лифт не доехал до целевого этажа
-                    // Обновляем текущий этаж
-                    commit('setCurrentFloor', state.currentFloor + direction);
-                    // Записываем транзитные этажи в список (для проверки на вызов лифта)
-                    if (state.targetFloor !== state.currentFloor) {
-                        commit('addPassedFloors', state.currentFloor);
+            const interval = setInterval(() => { // Запускаем движение лифта с заданным интервалом (1 секунду) на этаж
+                if (elevator.targetFloor > 0) { // пока  лифт не доехал до целевого этажа
+                    // Перемещаем лифт на следующий этаж в соответствии с направлением
+                    elevator.currentFloor += direction;
+                    this.commit('saveState');
+                    // Записываем транзитные этажи в список (для проверки при вызове лифта)
+                    if (elevator.targetFloor !== elevator.currentFloor) {
+                        elevator.passedFloors.push(elevator.currentFloor);
+                        this.commit('saveState');
                     }
                 }
-                // Сохраняем данные в локальное хранилище
-                dispatch('saveState');
+
                 // Когда лифт прибыл на целевой этаж
-                if (state.currentFloor === state.targetFloor && !state.passedFloors.includes(floor)) {
-                    console.log(`Лифт прибыл на целевой этаж ${state.targetFloor}`);
-                    commit('resetPassedFloors'); // Сбрасываем список транзитных этажей
-                    commit('resetTargetFloor'); // Сбрасываем целевой этаж
-                    commit('setIsMoving', false); // Убираем индикатор движения
+                if (elevator.targetFloor === elevator.currentFloor && !elevator.passedFloors.includes(floor)) {
+                    console.log(`Лифт-${elevator.id} прибыл на целевой ${elevator.targetFloor} этаж `);
+                    elevator.passedFloors = []; // Сбрасываем список транзитных этажей
+                    elevator.targetFloor = null; // Сбрасываем целевой этаж
+                    elevator.isMoving = false; // Сбрасываем целевой этаж
                     clearInterval(interval); // Завершаем движение
+                    this.commit('saveState');
+
                     setTimeout(() => {
-                        // Включаем индикатор "трёхсекундного" отдыха лифта по прибытии
-                        commit('setIsJustArrived', true);
+                        // По прибытии лифта на целевой этаж включаем индикатор "трёхсекундного" отдыха
+                        elevator.isJustArrived = true;
                     }, 50);
+
                     setTimeout(() => {
-                        commit('setIsJustArrived', false); // убираем индикатор "трёхсекундного" отдыха лифта по прибытии
+                        elevator.isJustArrived = false; // убираем индикатор "трёхсекундного" отдыха лифта по прибытии
                         // если есть поступившие вызовы - лифт отправится после отдыха согласно очереди
                         if (state.callQueue.length > 0) {
-                            /*dispatch(' moveElevatorToNextFloor');*/
+                            // Выбираем первый этаж из очереди
                             const nextFloor = state.callQueue.shift();
-                            console.log(`Лифт отправляется на следующий этаж: ${nextFloor}`);
-                            commit('setTargetFloor', nextFloor);
-                            dispatch('moveElevator', nextFloor);
+                            console.log(`Лифт-${elevator.id} отправляется на следующий этаж: ${nextFloor}`);
+                            // Устанавливаем его как целевой этаж для лифта
+                            elevator.targetFloor = nextFloor;
+                            // Отправляем лифт на вызов
+                            this.commit("assignElevatorToFloor", { elevator, floor: nextFloor });
+                            this.commit('saveState');
                         }
                     }, 3000); // 3 секунды отдыха
-                    dispatch('saveState');
                 }
-            }, 1000); // 1 этаж в секунду
+            }, 2000); // 1 этаж в секунду
+        },
+        addCallToQueue(state, floor) { // Добавляем вызов в общую очередь (вызывается, когда все лифты заняты)
+            state.callQueue.push(floor);
+        },
+        saveState(state) {
+            localStorage.setItem('appState', JSON.stringify(state));
+        },
+        replaceState(state, newState) {
+            // Заменяем текущее состояние новым состоянием
+            Object.keys(state).forEach(key => {
+                state[key] = newState[key];
+            });
+
+            // Проверяем наличие индикатора движения после перегазрузки страницы
+            state.elevators.forEach(elevator => {
+                if (elevator.isMoving) { // Если индикатор true - запускаем лифт к целевому этажу
+                    this.commit('assignElevatorToFloor', {elevator, floor: elevator.targetFloor});
+                } else if (state.callQueue.length > 0) { // если после остановки лифта есть вызовы в очереди - лифт отправится согласно очереди
+                    // Выбираем первый этаж из очереди
+                    const nextFloor = state.callQueue.shift();
+                    console.log(`Лифт-${elevator.id} отправляется на следующий этаж: ${nextFloor}`);
+                    // Устанавливаем его как целевой этаж для лифта
+                    elevator.targetFloor = nextFloor;
+                    // Отправляем лифт на вызов
+                    this.commit("assignElevatorToFloor", { elevator, floor: nextFloor });
+                    this.commit('saveState');
+                }
+
+                // Проверяем наличие индикатора "трёхсекундного отдыха" лифта
+                if (elevator.isJustArrived) { // Если индикатор true - отменяем его через 3 секунды и перезаписываем состояние
+                    setTimeout(() => {
+                        elevator.isJustArrived = false;
+                        this.commit('saveState');
+                    }, 3000); // 3 секунды отдыха
+                }
+            });
+        },
+    },
+
+    getters: {
+        getTargetFloors: (state) => {
+            return state.elevators.filter(elevator => elevator.targetFloor !== null).map(elevator => elevator.targetFloor);
+        },
+    },
+
+    actions: {
+        // Создание лифтов в зависимости от numberOfElevators
+        createElevators({ commit, state }) {
+            const numberOfElevators = config.numberOfElevators;
+            for (let i = 1; i <= numberOfElevators; i++) {
+                const elevator = {
+                    id: i, // Уникальный ID для каждого лифта
+                    currentFloor: 1, // Начальный этаж
+                    passedFloors: [],  // Транзитные этажи, которые лифт проезжает по пути, не останавливаясь
+                    isMoving: false, // Индикатор движения лифта
+                    isJustArrived: false, // Индикатор "трёхсекундного отдыха" лифта по прибытии на целевой этаж
+                    targetFloor: null, // Этаж, к которому в данный момент направляется лифт
+                };
+                commit("addElevator", elevator);
+            }
         },
 
-        moveElevatorToNextFloor({ state, commit, dispatch }) {
-            const nextFloor = state.callQueue.shift();
-            console.log(`Лифт отправляется на следующий этаж: ${nextFloor}`);
-            commit('setTargetFloor', nextFloor);
-            dispatch('moveElevator', nextFloor);
+        loadSavedState({ commit }) {
+            const savedState = JSON.parse(localStorage.getItem('appState'));
+            commit('replaceState', savedState);
+        },
+
+        callElevator({ state, commit }, floor) {
+            // Определяем, есть ли лифт на этом этаже
+            const elevatorOnFloor = state.elevators.find(elevator => elevator.currentFloor === floor);
+
+            // Определяем свободные лифты
+            const freeElevators = state.elevators.filter(elevator => !elevator.isMoving);
+
+            // Определяем движется ли лифт на целевой этаж
+            const elevatorTargetFloor = state.elevators.find(elevator => elevator.targetFloor === floor);
+
+            if (elevatorOnFloor && !elevatorOnFloor.isMoving) { // Лифт уже на этаже и в состоянии покоя, вызов пропускается
+                console.log(`На ${floor} этаже уже есть лифт`);
+                return;
+            }
+
+            if (elevatorTargetFloor) {  // Проверяем, не направляется ли уже лифт к целевому этажу
+                console.log(`К ${floor} этажу уже движется лифт`);
+                return;
+            }
+
+            // Если есть свободные лифты
+            if (freeElevators.length > 0) {
+                if (state.callQueue.length === 0) { // если очередь вызовов пуста
+                    // Выбираем ближайший к этажу
+                    const closestElevator = freeElevators.reduce((closest, elevator) => {
+                        const distance = Math.abs(elevator.currentFloor - floor);
+                        return distance < closest.distance ? { elevator, distance } : closest;
+                    }, { elevator: null, distance: Infinity }).elevator;
+
+                    if (closestElevator) {
+                        // Оправляем лифт на целевой этаж
+                        commit("assignElevatorToFloor", { elevator: closestElevator, floor });
+                        this.commit('saveState');
+                        console.log(`Лифт-${closestElevator.id} отправился на ${floor} этаж `);
+                    }
+                } else {  // если есть вызовы в очереди, добавляем ещё один (для ситуации "трёхсекундного отдыха")
+                    if (!state.callQueue.includes(floor)) {
+                        console.log(`Вызов на ${floor} этаж  помещён в очередь вызовов`);
+                        commit("addCallToQueue", floor);
+                    }
+                }
+            } else if (!state.callQueue.includes(floor) && !elevatorTargetFloor) { // Если нет свободных лифтов, этаж не содержится в общей очереди вызово и не является целевым этажом для движущихся лифтов, то добавляем вызов в общую очередь
+                console.log(`Вызов на ${floor} этаж  помещён в очередь вызовов`);
+                commit("addCallToQueue", floor);
+            }
         },
     }
 });
