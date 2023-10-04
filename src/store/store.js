@@ -81,7 +81,7 @@ export  default new Vuex.Store({
                         }
                     }, 3000); // 3 секунды отдыха
                 }
-            }, 2000); // 1 этаж в секунду
+            }, 1000); // 1 этаж в секунду
         },
         addCallToQueue(state, floor) { // Добавляем вызов в общую очередь (вызывается, когда все лифты заняты)
             state.callQueue.push(floor);
