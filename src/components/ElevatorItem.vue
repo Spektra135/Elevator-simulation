@@ -7,10 +7,9 @@
       ]"
     >
       <p class="display">
-        {{ elevator.currentFloor === floor && elevator.isMoving ? (elevator.currentFloor < elevator.targetFloor ? '↑' : '↓') : '' }}
-        {{ elevator.currentFloor === floor ? elevator.targetFloor : '' }}
-        {{ elevator.currentFloor === floor && !elevator.isMoving ? elevator.currentFloor : '' }}
-
+        {{ currentFloor === floor && isMoving ? (currentFloor < targetFloor ? '↑' : '↓') : '' }}
+        {{ currentFloor === floor ? targetFloor : '' }}
+        {{ currentFloor === floor && !isMoving ? currentFloor : '' }}
       </p>
     </div>
   </div>
